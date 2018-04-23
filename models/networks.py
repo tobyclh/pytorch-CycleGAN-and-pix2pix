@@ -323,9 +323,9 @@ class UnetSkipConnectionBlock(nn.Module):
             if cache:
                 self.intermediate = intermediate.clone()
         if self.outermost:
-            return self.up(intermediate) if not use_cached else self.up(self.intermediate)
+            return self.up(self.intermediate) if use_cached else self.up(intermediate)
         else:
-            return torch.cat([x, self.intermediate], 1)
+            return torch.cat([x, self.intermediate], 1)  if use_cached else torch.cat([x, intermediate], 1)
 
 
 
