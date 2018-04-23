@@ -286,6 +286,7 @@ class UnetSkipConnectionBlock(nn.Module):
                  submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
+        self.innermost = innermost
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -303,35 +304,39 @@ class UnetSkipConnectionBlock(nn.Module):
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1)
-            down = [downconv]
-            up = [uprelu, upconv, nn.Tanh()]
-            model = down + [submodule] + up
+            self.down = [downconv, submodule.down]
+            self.up = [submodule.up, uprelu, upconv, nn.Tanh()]
         elif innermost:
             upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv]
-            up = [uprelu, upconv, upnorm]
-            model = down + up
+            self.down = [downrelu, downconv]
+            self.up = [uprelu, upconv, upnorm]
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv, downnorm]
-            up = [uprelu, upconv, upnorm]
+            self.down = [downrelu, downconv, downnorm, submodule.down]
+            self.up = [submodule.up, uprelu, upconv, upnorm]
+            if use_dropout: self.up += [nn.Dropout(0.5)]
+        self.down = nn.Sequential(*self.down)
+        self.up = nn.Sequential(*self.up)
+        
 
-            if use_dropout:
-                model = down + [submodule] + up + [nn.Dropout(0.5)]
-            else:
-                model = down + [submodule] + up
 
-        self.model = nn.Sequential(*model)
-
-    def forward(self, x):
+    def forward(self, x, cache=False, use_cached=False):
+        assert not (cache and use_cached) #you can either cache or use cache, not both
+        if not use_cached: 
+            #downsample the input
+            intermediate = self.down(x)
+            if cache:
+                self.intermediate = intermediate.clone()
         if self.outermost:
-            return self.model(x)
+            return self.up(intermediate) if not use_cached else self.up(self.intermediate)
         else:
-            return torch.cat([x, self.model(x)], 1)
+            return torch.cat([x, self.intermediate], 1)
+
+
 
 
 # Defines the PatchGAN discriminator with the specified arguments.
