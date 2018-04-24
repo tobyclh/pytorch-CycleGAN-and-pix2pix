@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 import functools
-from torch.autograd import Variable
 from torch.optim import lr_scheduler
 
 ###############################################################################
@@ -131,14 +130,14 @@ class GANLoss(nn.Module):
                             (self.real_label_var.numel() != input.numel()))
             if create_label:
                 real_tensor = self.Tensor(input.size()).fill_(self.real_label)
-                self.real_label_var = Variable(real_tensor, requires_grad=False)
+                self.real_label_var = torch.Tensor(real_tensor, requires_grad=False)
             target_tensor = self.real_label_var
         else:
             create_label = ((self.fake_label_var is None) or
                             (self.fake_label_var.numel() != input.numel()))
             if create_label:
                 fake_tensor = self.Tensor(input.size()).fill_(self.fake_label)
-                self.fake_label_var = Variable(fake_tensor, requires_grad=False)
+                self.fake_label_var = torch.Tensor(fake_tensor, requires_grad=False)
             target_tensor = self.fake_label_var
         return target_tensor
 
@@ -176,10 +175,11 @@ class ResnetGenerator(nn.Module):
                                 stride=2, padding=1, bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
-
         mult = 2**n_downsampling
         for i in range(n_blocks):
             model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+        self.down = nn.Sequential(*model)
+        model.clear()
 
         for i in range(n_downsampling):
             mult = 2**(n_downsampling - i)
@@ -193,10 +193,17 @@ class ResnetGenerator(nn.Module):
         model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
         model += [nn.Tanh()]
 
-        self.model = nn.Sequential(*model)
+        self.up = nn.Sequential(*model)
 
-    def forward(self, input):
-        return self.model(input)
+    def half_forward(self, input):
+        return self.up(input)
+
+    def forward(self, input, cache=False):
+        intermediate = self.down(input)
+        if cache:
+            self.intermediate = intermediate.clone()
+        return self.up(intermediate)
+        
 
 
 # Define a resnet block
