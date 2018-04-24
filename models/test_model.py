@@ -1,8 +1,7 @@
-from torch.autograd import Variable
 from collections import OrderedDict
 from .base_model import BaseModel
 from . import networks
-
+import torch
 
 class TestModel(BaseModel):
     def name(self):
@@ -24,7 +23,7 @@ class TestModel(BaseModel):
                                       opt.norm, not opt.no_dropout,
                                       opt.init_type,
                                       self.gpu_ids)
-        self.load_networks(opt.which_epoch)
+        # self.load_networks(opt.which_epoch)
         self.print_networks(opt.verbose)
 
     def set_input(self, input):
@@ -36,8 +35,9 @@ class TestModel(BaseModel):
         self.image_paths = input['A_paths']
 
     def test(self):
-        self.real_A = Variable(self.input_A, volatile=True)
-        self.fake_B = self.netG(self.real_A)
+        with torch.no_grad():
+            self.real_A = self.input_A
+            self.fake_B = self.netG(self.real_A)
 
     def get_current_visuals(self):
         return OrderedDict([('real_A', self.real_A), ('fake_B', self.fake_B)])

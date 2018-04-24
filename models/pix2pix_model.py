@@ -1,5 +1,4 @@
 import torch
-from torch.autograd import Variable
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
@@ -66,15 +65,15 @@ class Pix2PixModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        self.real_A = Variable(self.input_A)
+        self.real_A = torch.Tensor(self.input_A)
         self.fake_B = self.netG(self.real_A)
-        self.real_B = Variable(self.input_B)
+        self.real_B = torch.Tensor(self.input_B)
 
     # no backprop gradients
     def test(self):
-        self.real_A = Variable(self.input_A, volatile=True)
+        self.real_A = torch.Tensor(self.input_A, volatile=True)
         self.fake_B = self.netG(self.real_A)
-        self.real_B = Variable(self.input_B, volatile=True)
+        self.real_B = torch.Tensor(self.input_B, volatile=True)
 
     def backward_D(self):
         # Fake

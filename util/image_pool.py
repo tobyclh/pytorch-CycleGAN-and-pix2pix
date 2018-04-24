@@ -1,7 +1,5 @@
 import random
 import torch
-from torch.autograd import Variable
-
 
 class ImagePool():
     def __init__(self, pool_size):
@@ -29,5 +27,5 @@ class ImagePool():
                     return_images.append(tmp)
                 else:
                     return_images.append(image)
-        return_images = Variable(torch.cat(return_images, 0))
+        return_images = torch.Tensor(torch.cat(return_images, 0))
         return return_images

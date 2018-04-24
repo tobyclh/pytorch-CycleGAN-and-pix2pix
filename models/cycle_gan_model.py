@@ -1,5 +1,4 @@
 import torch
-from torch.autograd import Variable
 import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
@@ -81,15 +80,15 @@ class CycleGANModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        self.real_A = Variable(self.input_A)
-        self.real_B = Variable(self.input_B)
+        self.real_A = torch.Tensor(self.input_A)
+        self.real_B = torch.Tensor(self.input_B)
 
     def test(self):
-        real_A = Variable(self.input_A, volatile=True)
+        real_A = torch.Tensor(self.input_A, volatile=True)
         self.fake_B = self.netG_A(real_A)
         self.rec_A = self.netG_B(self.fake_B)
 
-        real_B = Variable(self.input_B, volatile=True)
+        real_B = torch.Tensor(self.input_B, volatile=True)
         self.fake_A = self.netG_B(real_B)
         self.rec_B = self.netG_A(self.fake_A)
 
