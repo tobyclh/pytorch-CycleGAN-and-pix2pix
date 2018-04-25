@@ -130,14 +130,16 @@ class GANLoss(nn.Module):
                             (self.real_label_var.numel() != input.numel()))
             if create_label:
                 real_tensor = self.Tensor(input.size()).fill_(self.real_label)
-                self.real_label_var = torch.Tensor(real_tensor, requires_grad=False)
+                self.real_label_var = real_tensor
+                self.real_label_var.requires_grad= False
             target_tensor = self.real_label_var
         else:
             create_label = ((self.fake_label_var is None) or
                             (self.fake_label_var.numel() != input.numel()))
             if create_label:
                 fake_tensor = self.Tensor(input.size()).fill_(self.fake_label)
-                self.fake_label_var = torch.Tensor(fake_tensor, requires_grad=False)
+                self.fake_label_var = fake_tensor
+                self.fake_label_var.requires_grad = False
             target_tensor = self.fake_label_var
         return target_tensor
 
@@ -260,20 +262,20 @@ class UnetGenerator(nn.Module):
 
         # construct unet structure
         unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-        self.innermost = unet_block #cache the inner most block to see the 
         for i in range(num_downs - 5):
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
+            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout).cuda()
+        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer).cuda()
 
         self.model = unet_block
 
-    def forward(self, input, full=True):
+    def forward(self, input, full=True, cache=False):
         if full:
-            return self.model(input)
-        return NotImplementedError()
+            return self.model(input,cache=cache)
+        else:
+            return self.model.half_forward(input)
 
 
 # Defines the submodule with skip connection.
@@ -285,6 +287,9 @@ class UnetSkipConnectionBlock(nn.Module):
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
         self.innermost = innermost
+        self.intermediate = None
+        self.submodules = [self] if submodule is None else [self] + submodule.submodules
+        
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -297,45 +302,59 @@ class UnetSkipConnectionBlock(nn.Module):
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
         upnorm = norm_layer(outer_nc)
-
         if outermost:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1)
-            self.down = [downconv, submodule.down]
-            self.up = [submodule.up, uprelu, upconv, nn.Tanh()]
+            self._down = [downconv]
+            self._up = [uprelu, upconv, nn.Tanh()]
         elif innermost:
             upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            self.down = [downrelu, downconv]
-            self.up = [uprelu, upconv, upnorm]
+            self._down = [downrelu, downconv]
+            self._up = [uprelu, upconv, upnorm]
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            self.down = [downrelu, downconv, downnorm, submodule.down]
-            self.up = [submodule.up, uprelu, upconv, upnorm]
-            if use_dropout: self.up += [nn.Dropout(0.5)]
-        self.down = nn.Sequential(*self.down)
-        self.up = nn.Sequential(*self.up)
+            self._down = [downrelu, downconv, downnorm]
+            self._up = [uprelu, upconv, upnorm]
+            if use_dropout: self._up += [nn.Dropout(0.5)]
+        if submodule is not None:
+            self.subdown = submodule.down
+            self.subup = submodule.up
+        self._down = nn.Sequential(*self._down).cuda()
+        self._up = nn.Sequential(*self._up).cuda()
         
+    def half_forward(self, x):
+        assert self.intermediate is not None, 'you need to cache the data first, forward with cache=True'
+        return self.up(torch.cat([x, self.intermediate], 1))
+        
+    def down(self, x):
+        #print(f'Downing, shape : {x.shape}')
+        intermediate = self._down(x)
+        self.intermediate = intermediate#.clone()
+        if hasattr(self, 'subdown'): # continue to go downward if it isn't the deepest layer
+            latent = self.subdown(intermediate)
+            return latent
+        return self.intermediate
 
-
-    def forward(self, x, cache=False, use_cached=False):
-        assert not (cache and use_cached) #you can either cache or use cache, not both
-        if not use_cached: 
-            #downsample the input
-            intermediate = self.down(x)
-            if cache:
-                self.intermediate = intermediate.clone()
-        if self.outermost:
-            return self.up(self.intermediate) if use_cached else self.up(intermediate)
+    def up(self, x):
+        #print(f'Upping : {x.shape}')
+        if hasattr(self,'subup'):
+            x = self.subup(x)
+        # print(f'shape {x.shape}, {self.intermediate.shape}')
+        if self.innermost:
+            return self._up(x)
         else:
-            return torch.cat([x, self.intermediate], 1)  if use_cached else torch.cat([x, intermediate], 1)
+            return self._up(torch.cat([x, self.intermediate], 1))
 
-
-
+    def forward(self, x, cache):
+        intermediate = self.down(x)
+        self.latent = intermediate
+        # print(f'intermediate : {intermediate.shape}')
+        return self.up(intermediate)
 
 # Defines the PatchGAN discriminator with the specified arguments.
 class NLayerDiscriminator(nn.Module):

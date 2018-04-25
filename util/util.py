@@ -10,7 +10,7 @@ from torch import is_tensor
 # Converts a Tensor into a float
 def tensor2float(input_error):
     if is_tensor(input_error):
-        error = input_error[0]
+        error = input_error.item()
     else:
         error = input_error
     return error
@@ -23,7 +23,7 @@ def tensor2im(input_image, imtype=np.uint8):
         image_tensor = input_image
     else:
         return input_image
-    image_numpy = image_tensor[0].cpu().float().numpy()
+    image_numpy = image_tensor[0].cpu().detach().float().numpy()
     if image_numpy.shape[0] == 1:
         image_numpy = np.tile(image_numpy, (3, 1, 1))
     image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0

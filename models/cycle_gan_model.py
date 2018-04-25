@@ -80,17 +80,18 @@ class CycleGANModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        self.real_A = torch.Tensor(self.input_A)
-        self.real_B = torch.Tensor(self.input_B)
+        self.real_A = self.input_A
+        self.real_B = self.input_B
 
     def test(self):
-        real_A = torch.Tensor(self.input_A, volatile=True)
-        self.fake_B = self.netG_A(real_A)
-        self.rec_A = self.netG_B(self.fake_B)
+        with torch.no_grad():
+            real_A = self.input_A
+            self.fake_B = self.netG_A(real_A)
+            self.rec_A = self.netG_B(self.fake_B)
 
-        real_B = torch.Tensor(self.input_B, volatile=True)
-        self.fake_A = self.netG_B(real_B)
-        self.rec_B = self.netG_A(self.fake_A)
+            real_B = self.input_B
+            self.fake_A = self.netG_B(real_B)
+            self.rec_B = self.netG_A(self.fake_A)
 
     def backward_D_basic(self, netD, real, fake):
         # Real

@@ -27,5 +27,5 @@ class ImagePool():
                     return_images.append(tmp)
                 else:
                     return_images.append(image)
-        return_images = torch.Tensor(torch.cat(return_images, 0))
+        return_images = torch.cat(return_images, 0)
         return return_images
