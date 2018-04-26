@@ -17,20 +17,24 @@ def get_norm_layer(norm_type='instance'):
     elif norm_type == 'none':
         norm_layer = None
     else:
-        raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
+        raise NotImplementedError(
+            'normalization layer [%s] is not found' % norm_type)
     return norm_layer
 
 
 def get_scheduler(optimizer, opt):
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
-            lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
+            lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count -
+                             opt.niter) / float(opt.niter_decay + 1)
             return lr_l
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
+        scheduler = lr_scheduler.StepLR(
+            optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
     elif opt.lr_policy == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
+        scheduler = lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
     else:
         return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
     return scheduler
@@ -49,7 +53,8 @@ def init_weights(net, init_type='normal'):
             elif init_type == 'orthogonal':
                 init.orthogonal(m.weight.data, gain=1)
             else:
-                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+                raise NotImplementedError(
+                    'initialization method [%s] is not implemented' % init_type)
         elif classname.find('BatchNorm2d') != -1:
             init.normal(m.weight.data, 1.0, 0.02)
             init.constant(m.bias.data, 0.0)
@@ -71,15 +76,20 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
     norm_layer = get_norm_layer(norm_type=norm)
 
     if which_model_netG == 'resnet_9blocks':
-        netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        netG = ResnetGenerator(
+            input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif which_model_netG == 'resnet_6blocks':
-        netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
+        netG = ResnetGenerator(
+            input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif which_model_netG == 'unet_128':
-        netG = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        netG = UnetGenerator(input_nc, output_nc, 7, ngf,
+                             norm_layer=norm_layer, use_dropout=use_dropout)
     elif which_model_netG == 'unet_256':
-        netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+        netG = UnetGenerator(input_nc, output_nc, 8, ngf,
+                             norm_layer=norm_layer, use_dropout=use_dropout)
     else:
-        raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
+        raise NotImplementedError(
+            'Generator model name [%s] is not recognized' % which_model_netG)
     return init_net(netG, init_type, gpu_ids)
 
 
@@ -89,11 +99,14 @@ def define_D(input_nc, ndf, which_model_netD,
     norm_layer = get_norm_layer(norm_type=norm)
 
     if which_model_netD == 'basic':
-        netD = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
+        netD = NLayerDiscriminator(
+            input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     elif which_model_netD == 'n_layers':
-        netD = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
+        netD = NLayerDiscriminator(
+            input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     elif which_model_netD == 'pixel':
-        netD = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
+        netD = PixelDiscriminator(
+            input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' %
                                   which_model_netD)
@@ -131,7 +144,7 @@ class GANLoss(nn.Module):
             if create_label:
                 real_tensor = self.Tensor(input.size()).fill_(self.real_label)
                 self.real_label_var = real_tensor
-                self.real_label_var.requires_grad= False
+                self.real_label_var.requires_grad = False
             target_tensor = self.real_label_var
         else:
             create_label = ((self.fake_label_var is None) or
@@ -179,7 +192,8 @@ class ResnetGenerator(nn.Module):
                       nn.ReLU(True)]
         mult = 2**n_downsampling
         for i in range(n_blocks):
-            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            model += [ResnetBlock(ngf * mult, padding_type=padding_type,
+                                  norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
         self.down = nn.Sequential(*model)
         model.clear()
 
@@ -205,14 +219,14 @@ class ResnetGenerator(nn.Module):
         if cache:
             self.intermediate = intermediate.clone()
         return self.up(intermediate)
-        
 
 
 # Define a resnet block
 class ResnetBlock(nn.Module):
     def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
         super(ResnetBlock, self).__init__()
-        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias)
+        self.conv_block = self.build_conv_block(
+            dim, padding_type, norm_layer, use_dropout, use_bias)
 
     def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
         conv_block = []
@@ -224,7 +238,8 @@ class ResnetBlock(nn.Module):
         elif padding_type == 'zero':
             p = 1
         else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+            raise NotImplementedError(
+                'padding [%s] is not implemented' % padding_type)
 
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),
                        norm_layer(dim),
@@ -240,7 +255,8 @@ class ResnetBlock(nn.Module):
         elif padding_type == 'zero':
             p = 1
         else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+            raise NotImplementedError(
+                'padding [%s] is not implemented' % padding_type)
         conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),
                        norm_layer(dim)]
 
@@ -261,19 +277,25 @@ class UnetGenerator(nn.Module):
         super(UnetGenerator, self).__init__()
 
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        unet_block = UnetSkipConnectionBlock(
+            ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
         for i in range(num_downs - 5):
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout).cuda()
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
-        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
-        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer).cuda()
+            unet_block = UnetSkipConnectionBlock(
+                ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout).cuda()
+        unet_block = UnetSkipConnectionBlock(
+            ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(
+            ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(
+            ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer).cuda()
+        unet_block = UnetSkipConnectionBlock(
+            output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer).cuda()
 
         self.model = unet_block
 
     def forward(self, input, full=True, cache=False):
         if full:
-            return self.model(input,cache=cache)
+            return self.model(input, cache=cache)
         else:
             return self.model.half_forward(input)
 
@@ -288,8 +310,12 @@ class UnetSkipConnectionBlock(nn.Module):
         self.outermost = outermost
         self.innermost = innermost
         self.intermediate = None
-        self.submodules = [self] if submodule is None else [self] + submodule.submodules
+        self._submodules = [] if submodule is None else [
+            submodule] + submodule._submodules
         
+        if submodule is not None:
+            self.add_module(
+                'model.' + str(len(self._submodules)), submodule)
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -320,41 +346,31 @@ class UnetSkipConnectionBlock(nn.Module):
                                         padding=1, bias=use_bias)
             self._down = [downrelu, downconv, downnorm]
             self._up = [uprelu, upconv, upnorm]
-            if use_dropout: self._up += [nn.Dropout(0.5)]
-        if submodule is not None:
-            self.subdown = submodule.down
-            self.subup = submodule.up
+            if use_dropout:
+                self._up += [nn.Dropout(0.5)]
         self._down = nn.Sequential(*self._down).cuda()
         self._up = nn.Sequential(*self._up).cuda()
-        
-    def half_forward(self, x):
-        assert self.intermediate is not None, 'you need to cache the data first, forward with cache=True'
-        return self.up(torch.cat([x, self.intermediate], 1))
-        
-    def down(self, x):
-        #print(f'Downing, shape : {x.shape}')
+
+    # def half_forward(self, x):
+    #     assert self.intermediate is not None, 'you need to cache the data first, forward with cache=True'
+    #     return self.up(torch.cat([x, self.intermediate], 1))
+
+    def forward(self, x, cache=False):
+        # print('Down')
         intermediate = self._down(x)
-        self.intermediate = intermediate#.clone()
-        if hasattr(self, 'subdown'): # continue to go downward if it isn't the deepest layer
-            latent = self.subdown(intermediate)
-            return latent
-        return self.intermediate
-
-    def up(self, x):
-        #print(f'Upping : {x.shape}')
-        if hasattr(self,'subup'):
-            x = self.subup(x)
-        # print(f'shape {x.shape}, {self.intermediate.shape}')
-        if self.innermost:
-            return self._up(x)
+        if cache:
+            self.intermediate = intermediate
+        if len(self._submodules) > 0:
+            # print('Calling Sub')
+            intermediate = self._submodules[0](intermediate)
+        # print('Up')
+        upped = self._up(intermediate)
+        # print('cat')
+        if self.outermost:
+            return upped
         else:
-            return self._up(torch.cat([x, self.intermediate], 1))
+            return torch.cat([x, upped],1)
 
-    def forward(self, x, cache):
-        intermediate = self.down(x)
-        self.latent = intermediate
-        # print(f'intermediate : {intermediate.shape}')
-        return self.up(intermediate)
 
 # Defines the PatchGAN discriminator with the specified arguments.
 class NLayerDiscriminator(nn.Module):
@@ -393,7 +409,8 @@ class NLayerDiscriminator(nn.Module):
             nn.LeakyReLU(0.2, True)
         ]
 
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
+        sequence += [nn.Conv2d(ndf * nf_mult, 1,
+                               kernel_size=kw, stride=1, padding=padw)]
 
         if use_sigmoid:
             sequence += [nn.Sigmoid()]
@@ -415,7 +432,8 @@ class PixelDiscriminator(nn.Module):
         self.net = [
             nn.Conv2d(input_nc, ndf, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(ndf, ndf * 2, kernel_size=1, stride=1, padding=0, bias=use_bias),
+            nn.Conv2d(ndf, ndf * 2, kernel_size=1,
+                      stride=1, padding=0, bias=use_bias),
             norm_layer(ndf * 2),
             nn.LeakyReLU(0.2, True),
             nn.Conv2d(ndf * 2, 1, kernel_size=1, stride=1, padding=0, bias=use_bias)]

@@ -65,9 +65,9 @@ class Pix2PixModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        self.real_A = torch.Tensor(self.input_A)
+        self.real_A = self.input_A
         self.fake_B = self.netG(self.real_A)
-        self.real_B = torch.Tensor(self.input_B)
+        self.real_B = self.input_B
 
     # no backprop gradients
     def test(self):
