@@ -71,9 +71,10 @@ class Pix2PixModel(BaseModel):
 
     # no backprop gradients
     def test(self):
-        self.real_A = torch.Tensor(self.input_A, volatile=True)
-        self.fake_B = self.netG(self.real_A)
-        self.real_B = torch.Tensor(self.input_B, volatile=True)
+        with torch.no_grad():
+            self.real_A = self.input_A
+            self.fake_B = self.netG(self.real_A)
+            self.real_B = self.input_B
 
     def backward_D(self):
         # Fake
